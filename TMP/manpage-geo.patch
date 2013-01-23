@@ -1,0 +1,744 @@
+##
+## manpage-geo.patch by Michael Shell <www.michaelshell.org>
+## MDS: Update man page of mkdosfs to reflect application changes
+##      by geo.patch and add documentation about bootable volumes.
+##
+
+--- dosfstools-2.11-5_org/mkdosfs/mkdosfs.8	2008-08-22 21:57:19.000000000 -0400
++++ dosfstools-2.11-5_mod/mkdosfs/mkdosfs.8	2008-09-25 14:12:55.000000000 -0400
+@@ -1,10 +1,10 @@
+ .\" -*- nroff -*-
+-.TH MKDOSFS 8 "5 May 1995" "Version 2.x"
++.TH MKDOSFS 8 "25 September 2008" "Version 2.x"
+ .SH NAME
+ .B mkdosfs
+-\- create an MS-DOS file system under Linux
++\- create a FAT/MS-DOS filesystem
+ .SH SYNOPSIS
+-.B mkdosfs|mkfs.msdos|mkfs.vfat
++.B mkdosfs | mkfs.msdos | mkfs.vfat
+ [
+ .B \-A
+ ]
+@@ -13,16 +13,20 @@
+ .I sector-of-backup
+ ]
+ [
+-.B \-c
++.B \-B
++.I bootcode-file
+ ]
+-[ 
+-.B \-l
+-.I filename
++[
++.B \-c
+ ]
+ [
+ .B \-C
+ ]
+ [
++.B \-d
++.I BIOS-drive-number
++]
++[
+ .B \-f
+ .I number-of-FATs
+ ]
+@@ -32,20 +36,28 @@
+ ]
+ [
+ .B \-h
+-.I number-of-hidden-sectors
++.I start-sector
++]
++[
++.B \-H
++.I heads
+ ]
+ [
+ .B \-i
+ .I volume-id
+ ]
+ .RB [ " \-I " ]
++[ 
++.B \-l
++.I bad-block-file
++]
+ [
+ .B \-m
+ .I message-file
+ ]
+ [
+-.B \-B
+-.I bootcode-file
++.B \-M
++.I media-descriptor
+ ]
+ [
+ .B \-n
+@@ -57,7 +69,7 @@
+ ]
+ [
+ .B \-R 
+-.I number-of-reserved-sectors
++.I reserved-sectors
+ ]
+ [
+ .B \-s
+@@ -68,6 +80,14 @@
+ .I logical-sector-size
+ ]
+ [
++.B \-t
++.I sectors-per-track
++]
++[
++.B \-T
++.I hardware-sector-size
++]
++[
+ .B \-v
+ ]
+ .I device
+@@ -76,151 +96,552 @@
+ ]
+ .SH DESCRIPTION
+ .B mkdosfs
+-is used to create an MS-DOS file system under Linux on a device (usually
+-a disk partition).
++is used to create a FAT (aka MS-DOS) filesystem on the given
+ .I device
+-is the special file corresponding to the device (e.g /dev/hdXX).
++(usually a disk partition, e.g., /dev/hda2).
+ .I block-count
+-is the number of blocks on the device.  If omitted,
++is the number of blocks on the device. If omitted,
+ .B mkdosfs
+-automatically determines the file system size.
++automatically determines the filesystem size.
+ .SH OPTIONS
+ .TP
+ .B \-A
+-Use Atari variation of the MS-DOS file system. This is default if
+-\fBmkdosfs\fP is run on an Atari, then this option turns off Atari
+-format. There are some differences when using Atari format: If not
+-directed otherwise by the user, \fBmkdosfs\fP will always use 2
++Use Atari variation of the FAT filesystem. This is the default if
++\fBmkdosfs\fP is run on an Atari in which case this option turns
++off Atari format. There are some differences when using Atari format:
++If not directed otherwise by the user, \fBmkdosfs\fP will always use 2
+ sectors per cluster, since GEMDOS doesn't like other values very much.
+ It will also obey the maximum number of sectors GEMDOS can handle.
+-Larger file systems are managed by raising the logical sector size.
++Larger filesystems are managed by raising the logical sector size.
+ Under Atari format, an Atari-compatible serial number for the
+-file system is generated, and a 12 bit FAT is used only for file systems
++filesystem is generated, and a 12 bit FAT is used only for filesystems
+ that have one of the usual floppy sizes (720k, 1.2M, 1.44M, 2.88M), a
+ 16 bit FAT otherwise. This can be overridden with the \fB\-F\fP
+-option. Some PC-specific boot sector fields aren't written, and a boot
+-message (option \fB\-m\fP) is ignored.
++option. Some PC-specific boot sector fields aren't written, and any
++boot message (option \fB\-m\fP) is ignored.
+ .TP
+ .BI \-b " sector-of-backup "
+-Selects the location of the backup boot sector for FAT32. Default
+-depends on number of reserved sectors, but usually is sector 6. The
+-backup must be within the range of reserved sectors.
++Selects the location of the backup boot (logical) sector for FAT32.
++A backup FSInfo sector will be placed just after this sector.
++If set to zero, backup sectors will not be used. Any nonzero value must
++be at least 3, but no greater than the number of reserved sectors - 2.
++The default value depends on the number of reserved sectors. It will be 
++sector 6 (the standard FAT32 location) for 8 or more reserved sectors,
++two less than the number of reserved sectors for 5 to 7 reserved sectors,
++inclusive, and no backup boot sector for less than 5 reserved sectors.
++.TP
++.BI \-B " bootcode-file"
++Use the boot sector template from file
++.I bootcode-file
++to fill in the boot loader area of the boot sector (logical) and other
++reserved sector data, which is needed for bootable volumes. If
++.I bootcode-file
++is a hyphen (-), read the template from standard input. You can also
++specify that the boot code be taken directly from an existing partition,
++including the one that is to be reformatted
++(e.g., mkdosfs -B /dev/sda1 /dev/sda1), but in this latter case be
++aware that, if
++.B mkdosfs
++does not complete successfully, the template source could become
++corrupted.
++
++As a safeguard, the template file needs to have valid FAT parameter
++fields and will be rejected if some basic checks (e.g., FAT type)
++indicate that it is incompatible with the filesystem to be created.
++(However, the parameters need not be identical.) The (logical) sector
++sizes and reserved sector counts need not match, but only the data that
++fits into the lesser of the two will be copied. A warning will be
++issued if the template sector size does not match that of the
++filesystem. If the template file length exceeds 64k (65536) bytes
++long, it will be truncated and a warning will be issued. If the
++template file does not have an integer number of (template) sectors,
++it will be extended with zeros to make it so, unless the extension
++causes it to go over the 64k limit in which case a warning is
++issued and the last partial sector is dropped.
++
++For FAT12/16 filesystems, this option copies the first 3 bytes (jump
++instruction) and 448 bytes starting at offset 3Eh (boot loader code)
++of sector 0. Most FAT12/16 filesystems require a bootcode template
++file of no more than 510 bytes long. (The last two bytes of the
++(first) 512 byte block of the boot sector are just an end-of-record
++marker which
++.B mkdosfs
++always creates anyway.) If both the template and filesystem have
++logical sector sizes greater than 512 (0x200) bytes, the additional
++sector data (using the minimum sector size of the two) will be copied
++starting at offset 512.
++
++For FAT32 filesystems, this option copies the first 3 bytes
++(jump instruction), 420 bytes from offset 5Ah (boot loader code) to
++both primary and backup (if used) boot sectors. Sector lengths over
++512 bytes are handled in the same way as with FAT12/16. Also written
++for FAT32 filesystems is all other reserved sectors excluding the
++FSInfo sector (sector 1) which follows the boot sector (sector 0);
++the backup boot sector (usually sector 6); and the sector that
++immediately follows it (usually sector 7), which is the backup
++FSInfo sector. The FSInfo, backup boot and sector following the backup
++boot sector of the template (as indicated in the template's FAT
++parameter fields) are not copied. The input file need not be as large
++as reserved_sectors*512. To make a FAT32 partition bootable for
++Win95OSR2/98/ME systems, you will need at least the first 3 sectors
++(1536 bytes for the standard 512 byte sectors) as the second part of
++the boot loader is usually located in sector 2. For Win2000/XP systems,
++you will need at least the first 13 sectors (6656 bytes for the standard
++512 byte sectors) as the second part of the boot loader is usually
++located in sector 12.
++
++You can obtain a file of the boot code from a working system via
++.BR dd .
++(e.g., dd if=/dev/hda2 of=mybootsec.img bs=512 count=13).
++Boot loaders are very OS-specific. However, the same (or
++interchangeable) boot loader is often used within an OS family (e.g.,
++the Win95OSR2/98/ME family, the Win2000/XP family, etc.)
++Be aware that some viruses are known to infect boot sectors so users
++should take care to use only boot loader images taken from systems
++that are known to be "clean".
+ .TP
+ .B \-c
+-Check the device for bad blocks before creating the file system.
++Check the device for bad blocks before creating the filesystem.
+ .TP
+ .B \-C
+ Create the file given as \fIdevice\fP on the command line, and write
+-the to-be-created file system to it. This can be used to create the
+-new file system in a file instead of on a real device, and to avoid
++the to-be-created filesystem to it. This can be used to create the
++new filesystem in a file instead of on a real device, and to avoid
+ using \fBdd\fP in advance to create a file of appropriate size. With
+ this option, the \fIblock-count\fP must be given, because otherwise
+-the intended size of the file system wouldn't be known. The file
++the intended size of the filesystem wouldn't be known. The file
+ created is a sparse file, which actually only contains the meta-data
+ areas (boot sector, FATs, and root directory). The data portions won't
+ be stored on the disk, but the file nevertheless will have the
+ correct size. The resulting file can be copied later to a floppy disk
+-or other device, or mounted through a loop device.
++or other device, or mounted through a loop device. When using this
++option for bootable volumes, you will likely want to specify some
++other options (e.g., those related to drive geometry) as many of these
++cannot be automatically determined.
++.TP
++.BI \-d " BIOS-drive-number"
++Specifies the BIOS physical drive number of the device containing
++this volume as will be assigned to it on boot. This field is normally
++only used by the boot loader of bootable volumes. The default is to
++use 0x00 (0) for floppies and 0x80 (128) for hard drives (including
++LS120/ZIP/USB drives). This option is useful with devices such as
++LS120/ZIP/USB disks that boot (if set to be the boot drive in the BIOS
++setup) with a different BIOS drive number (e.g., 0x00 which normally
++is the first floppy drive) than is assigned to them under normal
++operation (e.g., 0x80 and 0x81, which are the first and second hard
++drives, respectively). A CDROM drive that is set to be the boot device
++may be assigned by the BIOS a drive number of 0x80, 0x00, or an
++arbitrary value. Be aware that some BIOSes have bugs in that other
++drives (e.g., a second floppy) may have to be disabled in the BIOS
++setup to allow a valid boot BIOS drive number (e.g., 0x00 or 0x80)
++to be assigned to an LS120/ZIP that is being used as a boot device.
++The valid range is 0x00-0xFF (0-255). An incorrect value for this
++field will cause the second stage boot loader to fail for bootable
++partitions (e.g., "Invalid system disk", "NTLDR is missing").
+ .TP
+ .BI \-f " number-of-FATs"
+-Specify the number of file allocation tables in the file system.  The
+-default is 2.  Currently the Linux MS-DOS file system does not support
+-more than 2 FATs.
++Specify the number of file allocation tables in the filesystem. The
++default is 2. The valid range is 1 to 4, inclusive.
+ .TP
+ .BI \-F " FAT-size"
+-Specifies the type of file allocation tables used (12, 16 or 32 bit).
++Specifies the file allocation table type/size used (12, 16 or 32 bit).
+ If nothing is specified, \fBmkdosfs\fR will automatically select
+-between 12, 16 and 32 bit, whatever fits better for the file system size.
++between 12, 16 and 32, whatever fits better for the filesystem size.
+ .TP
+-.BI \-h " number-of-hidden-sectors "
+-Select the number of hidden sectors in the volume. Apparently some
+-digital cameras get indigestion if you feed them a CF card without
+-such hidden sectors, this option allows you to satisfy them. Assumes
+-\'0\' if no value is given on the command line.
++.BI \-h " start-sector "
++Specifies the (hardware) start sector of the partition of the volume. This
++field, a 32 bit unsigned integer normally only used by the boot loader of
++bootable volumes, is commonly known as the number of "hidden sectors",
++but the name "hidden sectors" is somewhat of a misnomer. It basically
++refers to how many hardware sectors are on the disk prior to the actual
++beginning of the given volume (partition), i.e.,
++"partition absolute start sector". You can see this value as the partition
++start sector as reported by
++.B fdisk -u
++for the given partitioned disk. For nonpartitioned disks such as floppies,
++the default is 0. For hard drive (and LS120/ZIP) partitions, the default
++is to use what the geometry inquiry reports is the starting sector of the
++partition. If
++.B mkdosfs
++is unable to determine the starting sector from the device geometry inquiry,
++the default is to use 63 (which is by far the most common value used for
++the first primary partition of a hard drive). An incorrect value for the
++start sector will cause the second stage boot loader to fail for bootable
++partitions (e.g., "Invalid system disk", "NTLDR is missing."). Also, some
++digital cameras will have problems with FAT formatted flash cards if the
++this value incorrect (or not what the device wants). Because many
++formatting applications, including those from Microsoft, have bugs with
++regard to the proper value of the start sector, it may be possible to use
++.B mkdosfs
++to create bootable volumes that may not have been previously thought
++to work, at least not without manually editing the hidden sectors
++field (e.g., booting Win2000/XP within an extended/logical partition).
++.TP
++.BI \-H " heads "
++Specifies the number of heads to use for the drive geometry. Normally
++only used by the boot loader of bootable volumes, this number should
++match what the BIOS is using. As such information is not generally
++available from the kernel,
++.B mkdosfs
++must make an educated guess as to the correct value to use here. (The
++same is true of
++.BR fdisk .)
++An incorrect value will cause the second stage boot loader to fail for
++bootable partitions when LBA is not used (e.g., "Invalid system disk",
++"NTLDR is missing."). By far the most common value used today for
++hard drives is 255, the second most common being 128. The allowed range
++is 0 to 65535 (0xFFFF), inclusive, although values over 255 are generally
++not used as MS Windows boot loaders ignore the higher order byte (this
++oversight is why BIOSes present a maximum of 255, not 256, heads).
+ .TP
+-.I \-i " volume-id"
+-Sets the volume ID of the newly created file system;
++.BI \-i " volume-id"
++Sets the volume ID of the newly created filesystem;
+ .I volume-id
+-is a 32-bit hexadecimal number (for example, 2e24ec82).  The default
+-is a number which depends on the file system creation time.
++is a 32-bit hexadecimal number, with or without a 0x prefix
++(e.g., 2e24ec82). The default is a number which depends on the
++filesystem creation time.
+ .TP
+ .B \-I
+-Normally you are not allowed to use any 'full' fixed disk devices.
+ .B mkdosfs
+-will complain and tell you that it refuses to work.  This is different
+-when using MO disks.  One doesn't always need partitions on MO disks.
+-The file system can go directly to the whole disk.  Under other OSes
+-this is known as the 'superfloppy' format.
+-
+-This switch will force
++does not normally allow the formatting of non-partitioned fixed disk
++devices (e.g., /dev/hdb) as a safeguard against accidents. However,
++this is acceptable practice for magneto-optical (e.g., LS120/ZIP)
++"superfloppy" disks as they do not always have or require
++partitions - the filesystem can go directly on the entire disk.
++This switch will enable
+ .B mkdosfs
+-to work properly.
++to format such disks.
+ .TP
+-.BI \-l " filename"
+-Read the bad blocks list from
+-.IR filename .
++.BI \-l " bad-block-file"
++Read and use a list of bad blocks (which are to be excluded from
++use by the filesystem) in
++.IR bad-block-file .
++The format of this file is one block number per line as is the output
++format of
++.BR badblocks .
++The number of bytes per block used by
++.B mkdosfs
++is OS-specific (with respect to the
++machine running
++.BR mkdosfs )
++and the application that generated
++.IR bad-block-file 
++must use the same convention. For Linux, this value is defined in the
++include file <linux/fs.h> as BLOCK_SIZE, which is usually 1024.
+ .TP
+ .BI \-m " message-file"
+-Sets the message the user receives on attempts to boot this file system
+-without having properly installed an operating system.  The message
+-file must not exceed 418 bytes once line feeds have been converted to
+-carriage return-line feed combinations, and tabs have been expanded.
+-If the filename is a hyphen (-), the text is taken from standard input. 
+-.TP
+-.BI \-B " bootcode-file"
+-Uses boot machine code from file "file".  On any thing other than FAT32,
+-this only writes the first 3 bytes, and 480 bytes from offset 3Eh.  On
+-FAT32, this writes the first 3 bytes, 420 bytes from offset 5Ah to both
+-primary and backup boot sectors.  Also writes all other reserved sectors
+-excluding the sectors following boot sectors (usually sector 2 and 7).
+-Does not require that the input file be as large as reserved_sectors*512.
+-To make a FAT32 partition bootable, you will need at least the first
+-13 sectors (6656 bytes).  You can also specify a partition as the argument
+-to clone the boot code from that partition.
+-i.e mkdosfs -B /dev/sda1 /dev/sda1
++Sets the message the user receives on attempts to boot this filesystem
++without having properly installed an operating system and boot loader.
++The message file must not exceed 390 bytes for FAT32 volumes, or 418
++bytes for FAT12/16, once line feeds have been converted to carriage
++return / line feed combinations, and tabs have been expanded. If the
++filename is a hyphen (-), the text is taken from standard input. Note
++that the
++.B -B
++option will override the dummy boot code that uses this message.
++.TP
++.BI \-M " media-descriptor "
++Specifies the media descriptor number to use. The allowed range is
++0x00 to 0xFF (255), inclusive, with currently valid values being
++between 0xF0 (240) to 0xFF (255). The correct value for hard drives
++is 0xF8, and for 3.5" 1.44MB floppies it is 0xF0.
++.B mkdosfs
++defaults to the correct value based on the filesystem size. Although
++this field is considered to be obsolete, an incorrect value here can
++cause Win98/NT and later to incorrectly conclude that a floppy disk
++is not formatted (or is otherwise not ready for use).
+ .TP
+ .BI \-n " volume-name"
+-Sets the volume name (label) of the file system.  The volume name can
+-be up to 11 characters long.  The default is no label.
++Sets the volume name (label) of the filesystem. The volume name can
++be up to 11 characters long. The default is no label.
+ .TP
+ .BI \-r " root-dir-entries"
+-Select the number of entries available in the root directory.  The
+-default is 112 or 224 for floppies and 512 for hard disks.
+-.TP
+-.BI \-R " number-of-reserved-sectors "
+-Select the number of reserved sectors. With FAT32 format at least 2
+-reserved sectors are needed, the default is 32. Otherwise the default
+-is 1 (only the boot sector).
++Specify the number of entries available in the root directory. The valid
++range is 16 to 32768, inclusive. The default is 112 or 224 for floppies
++and 512 for hard disks.
++.TP
++.BI \-R " reserved-sectors "
++Specify the number of reserved sectors (logical) at the start of the volume
++which are used for the boot sector as well as for specialized filesystem
++information, backup boot sectors and/or additional parts of the boot loader.
++The valid range is 1 (or 2 for FAT32) to 65535, inclusive. Under the FAT32
++format, which requires at least 2 (4 if backup sectors are used) reserved
++sectors, the default is 32 (the standard value for FAT32). Otherwise, the
++default is one (only the boot sector).
+ .TP
+ .BI \-s " sectors-per-cluster"
+-Specify the number of disk sectors per cluster.  Must be a power of 2,
+-i.e. 1, 2, 4, 8, ... 128.
++Specify the number of logical sectors per cluster. Must be a power of 2 not
++greater than 128, e.g., 1, 2, 4, 8, ... 128. The default value depends
++on the filesystem size.
+ .TP
+ .BI \-S " logical-sector-size"
+-Specify the number of bytes per logical sector.  Must be a power of 2
+-and greater than or equal to 512, i.e. 512, 1024, 2048, 4096, 8192,
+-16384, or 32768.
++Specify the number of bytes per logical sector. Must be a power of 2
++and greater than or equal to 512, e.g., 512, 1024, 2048, 4096, 8192,
++16384, or 32768. The value must also be greater than or equal to the
++hardware sector size of the drive. If not this option is not specified,
++the default is to use whatever the hardware sector size is, most commonly
++512. Be aware that many bootloaders will not work properly with values
++other than 512 as they are hardcoded for that value.
++.TP
++.BI \-t " sectors-per-track "
++Specifies the number of hardware sectors-per-track to use for the drive
++geometry. Normally only used by the boot loader of bootable volumes,
++this number should match what the BIOS is using. Hard drives almost
++always use 63 and
++.B mkdosfs
++also knows the correct values to use for the common floppy sizes. An
++incorrect value will cause the second stage boot loader to fail for
++bootable partitions when LBA is not used (e.g., "Invalid system disk",
++"NTLDR is missing."). The valid range is 0 to 65535, inclusive, although
++values over 63 are rarely, if ever, used.
++.TP
++.BI \-T " hardware-sector-size"
++Specify the number of bytes per hardware sector. Must be a power of 2
++and greater than or equal to 512, e.g., 512, 1024, 2048, 4096, 8192,
++16384, or 32768. The default will be whatever the kernel reports is the
++sector size for the given device. If this information is not available,
++a default value of 512 will be used. Hard drives have traditionally used
++512 bytes per sector, but 4096 is expected to succeed the older standard.
++This option is mainly intended for use with the
++.B \-C
++option or in other cases where the filesystem is created on a different
++device than that on which it will be used. Be aware that many bootloaders
++will not work properly with drives that use values other than 512 as they
++are hardcoded for that value.
+ .TP
+ .B \-v
+-Verbose execution.
+-.SH BUGS
++Verbose execution. This option will cause
+ .B mkdosfs
+-can not create boot-able file systems. This isn't as easy as you might
+-think at first glance for various reasons and has been discussed a lot
+-already.
++to show a summary of filesystem parameters. A second (or more)
++invocation of this option will cause additional information to be
++displayed.
++.SH EXAMPLES
++To format a floppy:
++.RS 5
++.P
++mkdosfs /dev/fd0
++.RE
++.P
++To create a FAT32 filesystem on the second partition of the first
++hard drive:
++.RS 5
++.P
++mkdosfs -F 32 /dev/hda2
++.RE
++.P
++To create a named FAT16 filesystem on an unpartitioned LS120/ZIP
++drive which is to be booted (after the boot loader code is later
++reinstalled by another application such as Win95/98/ME's sys X:)
++by the BIOS as the first floppy:
++.RS 5
++.P
++mkdosfs -d 0x00 -F 16 -I -n My_LS120 -v /dev/hdb
++.RE
++.P
++To create a named bootable FAT32 filesystem on the first hard drive
++partition using the boot loader code from a file:
++.RS 5
++.P
++mkdosfs -B mybootsec.img -F 32 -n Spock -v /dev/hda1
++.RE
++.P
++To create a FAT32 filesystem in an image file, manually specifying
++some example drive geometry parameters needed for bootable volumes:
++.RS 5
++.P
++mkdosfs -C -F 32 -h 145693485 -H 255 -v fsfile.img 500000
++.RE
++.SH RESERVED SECTORS
++Users may find the following information helpful when using some of
++the more advanced features of
++.BR mkdosfs .
++
++Reserved sectors (each of these and other logical sectors usually have
++512 bytes, although this value can be powers of two greater than 512)
++are the very first sectors in a FAT partition/volume which contain
++essential system information about the volume. The very first sector
++(sector 0) of a FAT partition/volume is known as the (partition) boot
++sector which contains information about the size and structure of the
++FAT filesystem including information about how the volume can be
++accessed using BIOS calls (as is required when booting). The boot sector
++also has an area that contains the boot loader (for bootable volumes).
++Under FAT12/16 filesystems there is only one reserved sector - the boot
++sector.
++
++FAT32 filesystems contain more than one reserved sector. The vast
++majority of FAT32 systems allocate 32 reserved sectors, but only about
++four or five of these are typically used. At a bare minimum, FAT32
++filesystems need two reserved sectors, the boot sector and next sector
++(sector 1), known as a "FSInfo" sector, which is mainly used to store
++the last known free cluster count so that this value will not have to be
++recomputed with every directory listing. 
++
++Because of the importance of the boot sector, an optional copy, known
++as the backup boot sector, is kept, almost always at sector 6, although
++the location can vary as needed. A backup FSInfo sector is usually kept
++just after the backup boot sector.
+ .B mkdosfs
+-simply will not support it ;)
++will automatically create backup boot and backup FSInfo sectors unless 
++instructed not to, or the number of reserved sectors requested is less
++than five.
++
++For Win95OSR2/98/ME systems, sector 2 is commonly used for a second part
++of the boot loader, a backup of which is stored after the backup FSInfo
++sector. Win2000/XP usually uses sector 12 for the second part of its
++boot loader, without a backup.
++
++Some of the other reserved sectors may be used by a very limited number
++of special system applications (e.g., disk management software,
++software license tracking, digital rights management, etc.), but their
++function is neither standardized nor essential, and they are not expected
++to exist in a freshly formatted volume.
++
++.B mkdosfs
++zeros out all the reserved sectors before writing data to them to
++ensure that any previous data within them is cleared.
++.SH BOOTABLE VOLUMES
++Creating bootable FAT filesystems on multiboot systems has always been
++tricky. There are a number of conditions that need to be satisfied
++including:
++(1) The partition should be declared with the proper type ID in the
++partition table using tools such as
++.BR fdisk ;
++(2) A boot loader must be installed in the partition's boot sector(s);
++(3) The BIOS drive geometry information contained within the boot
++sector (e.g., number of heads, number of sectors per track) must be
++correct if LBA access is not in use; also, the hardware start sector
++(i.e., number of hidden sectors) and BIOS drive numbers must always
++be correct;
++(4) The partition to be booted must be within the range of hardware
++sectors accessible by the BIOS and boot loader (or other boot system
++environment);
++(5) The master boot loader (e.g.,
++.BR lilo ,
++.BR grub )
++must be aware that the given partition exists and can be booted;
++(6) For Win2000/XP systems, the boot.ini file must specify the
++correct controller, physical disk and partition numbers that the
++second stage boot loader is to use;
++(7) The fixed internal path names within MS Windows must use the same
++drive letter that the partition was assigned via Microsoft's enduring
++and bizarre convention;
++and
++(8) The volume must contain all the system files required by the
++operating system.
++
++The boot loader has to rely on the BIOS to access the drive. In the past,
++sectors of (non-SCSI) disks were addressed using cylinder, head and
++sector-within-track (CHS) addressing. However, due to bit field size limits,
++this method cannot access sectors that are beyond the first 8.4GB of the
++disk. Furthermore, incorrectly specified values for the number of disk
++heads, cylinders and/or sectors per track (i.e., the disk geometry) will
++cause this access method to fail. In the late 1990's, the Logical Block
++Addressing (LBA) scheme (which had always been used for SCSI disks) was
++implemented in IDE/ATA drives to allow sectors to be directly accessed by
++sector number via BIOS INT 13 extensions. It is strongly recommended
++that LBA access be used whenever possible and it is required for
++partitions that are beyond the first 8.4GB of the disk. Nevertheless, a
++"modern" MS Windows bootloader may still rely on CHS access methods even
++on a machine that supports LBA. If this is the case, any incorrect drive
++geometry values in the FAT boot sector will cause the second stage boot
++loader to fail to load (e.g., "Invalid system disk", "NTLDR is missing.").
++
++For Win95OSR2/98/ME systems, the boot loader's decision whether to use
++LBA access is determined by the partition type ID: 0x06 (FAT16,CHS),
++0x0E (FAT16,LBA), 0x0B (FAT32,CHS), 0x0C (FAT32,LBA), 0x0F (extended,LBA).
++The standard extended partition type ID (0x05) cannot be used as doing
++so will cause a failure to locate COMMAND.COM. Furthermore, the boot loader
++provided by Win95OSR2/98/ME has a known problem when trying to boot to
++a FAT16/32 logical partition within an extended partition (type 0x0F)
++beyond the 1023 cylinder limit (approx 8.4GB) in that it fails to use
++the needed BIOS INT 13 LBA extensions as it does with primary partitions.
++This latter problem can be overcome by manually patching the boot loader
++code using a disk/hex editor such as
++.BR shed .
++Change the two bytes 0x75 0x06 to 0xB2 0x0E at partition offset location
++0x89 (FAT16 Win95OSR2); 0x80 (FAT16 Win98/ME); or 0xA8
++(FAT32 Win95OSR2/98/ME). This patch will force the use of the BIOS
++INT 13 LBA extensions in all cases. It is not possible to overcome
++this problem with the boot loader of the first release of Win95.
++
++For Win2000/XP systems, the boot loader's decision whether to use
++LBA access seems to be determined by the location of the partition
++irrespective of its type ID. Thus, partitions before the first 8.4GB of the
++disk will still use CHS access. Extended partitions may use the standard
++type ID (0x05).
++
++A partition/volume boot loader can be installed by
++.B mkdosfs
++from a suitable image file using the
++.B -B
++option. Alternatively, to manually repair/(re)install boot loader
++code on a volume under MS Windows, run "sys X:" (Win95/98/ME) or
++"fixboot X:" (Win2000/XP within the setup disk recovery console),
++where "X" is the correct drive letter. Note that these utilities do
++not usually correct geometry problems, they just blindly install boot
++loader code (and are hardcoded to use a 512 byte sector size).
++.SH KNOWN ISSUES AND LIMITATIONS
++.B mkdosfs
++sometimes gets the drive BIOS geometry wrong as it has to work with
++incomplete and sometimes contradictory information, although it
++should now be reasonably good at getting this right automatically. In
++any case, this should only be a problem with bootable volumes when LBA
++access is not used. Suspect this problem if you get "Invalid system disk",
++or "NTLDR is missing." messages even after (re)installing the volume's
++boot loader, but the problem does not happen if the volume is formatted
++under MS Windows. See the
++.BR -d ,
++.BR -h ,
++.B -H
++and
++.BR -t
++options for ideas about which magic chant may work for you.
++
++Beware that a cloned/moved Win2000/XP installation on the same drive
++may still see/use its old partition resulting in a "schizophrenic" system
++(e.g., unable to complete the login process, unable to start some
++applications). In the case of Win2000, this can be true even if the old
++partition's type ID has been changed to that of a non-FAT filesystem.
++A quick remedy for this is to change the disk ID field in the Master Boot
++Record (MBR) of the disk which consists of 4 bytes starting at offset
++0x1B8 of sector 0 of the disk (not partition). Changing this number will
++cause MS Windows to rebuild its internal disk information.
++
++Among other things, the hardware start sector field of the
++FAT filesystem boot record is a 32 bit unsigned integer. Given that there are usually 512
++bytes in a sector on a hard drive, the start sector field is not
++capable of specifying a partition start sector that is beyond a 2.19TB
++limit. The traditional partition table has the same type of limitation.
++However, newer hard drives are expected to use 4k bytes per sector.
++.SH AVAILABILITY
++.B mkdosfs
++is part of the dosfstools package and is available at:
++http://packages.debian.org/stable/otherosfs/dosfstools
+ .SH AUTHOR
+-Dave Hudson - <dave@humbug.demon.co.uk>; modified by Peter Anvin
+-<hpa@yggdrasil.com>. Fixes and additions by Roman Hodek
+-<roman@hodek.net> for Debian/GNU Linux.
++Dave Hudson <http://www.humbug.demon.co.uk/dave/dave.html>;
++later modified by H. Peter Anvin <http://www.zytor.com/~hpa/>.
++Many fixes and additions by Roman Hodek
++<http://www.hodek.net> and Daniel Baumann <http://www.daniel-baumann.ch/>
++for Debian/GNU Linux.
+ .SH ACKNOWLEDGMENTS
+ .B mkdosfs
+ is based on code from
+ .BR mke2fs
+-(written by Remy Card - <card@masi.ibp.fr>) which is itself based on
++(written by Remy Card <http://en.wikipedia.org/wiki/R%C3%A9my_Card>)
++which is itself based on
+ .BR mkfs 
+-(written by Linus Torvalds - <torvalds@cs.helsinki.fi>).
++(written by Linus Torvalds <http://www.cs.helsinki.fi/u/torvalds/>).
++
++Thanks to Sam Bingner <http://www.bingner.com> for implementing the
++-B option; Petr Soucek for providing information and the boot loader
++code patches related to booting MS Windows from extended partitions
++in his September 7, 2002 post to the XOSL discussion list; The Starman
++(Daniel B. Sedory) <http://www.geocities.com/thestarman3/> for his
++detailed information about boot records; and Michael Shell
++<http://www.michaelshell.org> for improving geometry handling and the
++man page, particularly with regard to bootable FAT volumes.
+ .SH SEE ALSO
++.BR badblocks (8),
+ .BR dosfsck (8),
++.BR dosfslabel (8),
+ .BR mkfs (8)
