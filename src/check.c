@@ -37,6 +37,7 @@
 #include "file.h"
 #include "lfn.h"
 #include "check.h"
+#include "ui.h"
 
 static DOS_FILE *root;
 
@@ -661,7 +662,7 @@ static int check_dir(DOS_FS * fs, DOS_FILE ** root, int dots)
 {
     DOS_FILE *parent, **walk, **scan;
     int dot, dotdot, skip, redo;
-    int good, bad;
+    int good, bad, done = 0;
 
     if (!*root)
 	return 0;
@@ -689,6 +690,7 @@ static int check_dir(DOS_FS * fs, DOS_FILE ** root, int dots)
     dot = dotdot = redo = 0;
     walk = root;
     while (*walk) {
+	ui_print_progress(done++, bad + good);
 	if (!strncmp
 	    ((const char *)((*walk)->dir_ent.name), MSDOS_DOT, MSDOS_NAME)
 	    || !strncmp((const char *)((*walk)->dir_ent.name), MSDOS_DOTDOT,
@@ -1044,9 +1046,11 @@ int scan_root(DOS_FS * fs)
     if (fs->root_cluster) {
 	add_file(fs, &chain, NULL, 0, &fp_root);
     } else {
-	for (i = 0; i < fs->root_entries; i++)
+	for (i = 0; i < fs->root_entries; i++) {
+	    ui_print_progress(i, fs->root_entries);
 	    add_file(fs, &chain, NULL, fs->root_start + i * sizeof(DIR_ENT),
 		     &fp_root);
+	}
     }
     lfn_check_orphaned();
     (void)check_dir(fs, &root, 0);

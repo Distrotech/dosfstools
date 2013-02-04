@@ -30,7 +30,7 @@
 \fBfsck.fat\fP \- check and repair MS\-DOS filesystems
 
 .SH SYNOPSIS
-\fBfsck.fat\fP|\fBfsck.msdos\fP|\fBfsck.vfat\fP [\-aAflnrtvVwy] [\-d \fIPATH\fP \-d\ \&\fI...\fP] [\-u\ \fIPATH\fP \-u \fI...\fP] \fIDEVICE\fP
+\fBfsck.fat\fP|\fBfsck.msdos\fP|\fBfsck.vfat\fP [\-aAflnrtvVwy] [\-d \fIPATH\fP \-d\ \&\fI...\fP] [\-C\ [ \fIfd\fP ] ] [\-u\ \fIPATH\fP \-u \fI...\fP] \fIDEVICE\fP
 
 .SH DESCRIPTION
 \fBfsck.fat\fP verifies the consistency of MS\-DOS filesystems and optionally
@@ -108,6 +108,10 @@ where on Atari values 0xfff0...0xfff7 are for this purpose (but the standard
 value is still 0xfff7).
 .IP \fB\-b\fP 4
 Make read\-only boot sector check.
+.IP "\fB\-C [ fd ]\fP" 4
+Display completion/progress bars for those filesystem checkers. GUI
+front\-ends may specify a file descriptor fd, in which case the progress bar
+information will be sent to that file descriptor.
 .IP \fB\-d\fP 4
 Delete the specified file. If more that one file with that name exists, the
 first one is deleted.

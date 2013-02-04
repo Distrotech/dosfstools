@@ -34,6 +34,7 @@
 #include "io.h"
 #include "check.h"
 #include "fat.h"
+#include "ui.h"
 
 /**
  * Fetch the FAT entry for a specified cluster.
@@ -148,6 +149,7 @@ void read_fat(DOS_FS * fs)
 
     /* Truncate any cluster chains that link to something out of range */
     for (i = 2; i < fs->clusters + 2; i++) {
+	ui_print_progress(i - 2, fs->clusters - 2);
 	FAT_ENTRY curEntry;
 	get_fat(&curEntry, fs->fat, i, fs);
 	if (curEntry.value == 1) {

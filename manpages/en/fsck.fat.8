@@ -25,7 +25,7 @@
 \fBfsck.fat\fR \- check and repair MS\-DOS filesystems
 
 .SH SYNOPSIS
-\fBfsck.fat\fR|\fBfsck.msdos\fR|\fBfsck.vfat\fR [\-aAflnrtvVwy] [\-d \fIPATH\fR \-d\ \fI...\fR] [\-u\ \fIPATH\fR \-u \fI...\fR] \fIDEVICE\fR
+\fBfsck.fat\fR|\fBfsck.msdos\fR|\fBfsck.vfat\fR [\-aAflnrtvVwy] [\-d \fIPATH\fR \-d\ \fI...\fR] [\-C\ [ \fIfd\fR ] ] [\-u\ \fIPATH\fR \-u \fI...\fR] \fIDEVICE\fR
 
 .SH DESCRIPTION
 \fBfsck.fat\fR verifies the consistency of MS\-DOS filesystems and optionally tries to repair them.
@@ -81,6 +81,8 @@ Automatically repair the filesystem. No user intervention is necessary. Whenever
 Use Atari variation of the MS\-DOS filesystem. This is default if \fBfsck.fat\fR is run on an Atari, then this option turns off Atari format. There are some minor differences in Atari format: Some boot sector fields are interpreted slightly different, and the special FAT entries for end\-of\-file and bad cluster can be different. Under MS\-DOS 0xfff8 is used for EOF and Atari employs 0xffff by default, but both systems recognize all values from 0xfff8...0xffff as end\-of\-file. MS\-DOS uses only 0xfff7 for bad clusters, where on Atari values 0xfff0...0xfff7 are for this purpose (but the standard value is still 0xfff7).
 .IP "\fB-b\fR" 4
 Make read-only boot sector check.
+.IP "\fB-C [ fd ]\fR" 4
+Display completion/progress bars for those filesystem checkers. GUI front-ends may specify a file descriptor fd, in which case the progress bar information will be sent to that file descriptor.
 .IP "\fB\-d\fR" 4
 Delete the specified file. If more that one file with that name exists, the first one is deleted.
 .IP "\fB\-f\fR" 4

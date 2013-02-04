@@ -40,9 +40,9 @@ all: build
 
 build: fatlabel fsck.fat mkfs.fat
 
-fatlabel: boot.o check.o common.o fat.o file.o io.o lfn.o charconv.o fatlabel.o
+fatlabel: boot.o check.o common.o fat.o file.o io.o lfn.o charconv.o fatlabel.o ui.o
 
-fsck.fat: boot.o check.o common.o fat.o file.o io.o lfn.o charconv.o fsck.fat.o
+fsck.fat: boot.o check.o common.o fat.o file.o io.o lfn.o charconv.o fsck.fat.o ui.o
 
 mkfs.fat: mkfs.fat.o
 
