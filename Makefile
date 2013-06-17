@@ -22,7 +22,7 @@ SHELL := sh -e
 LANGUAGES = $(shell cd manpages/po && ls)
 
 DESTDIR =
-PREFIX = /usr/local
+PREFIX = /usr
 SBINDIR = $(PREFIX)/sbin
 DOCDIR = $(PREFIX)/share/doc
 MANDIR = $(PREFIX)/share/man
